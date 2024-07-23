@@ -1,6 +1,5 @@
 import json
 import os
-import platform
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -12,6 +11,7 @@ from pi_haiku.models import PathType, PyPackage
 
 log = getLogger(__name__)
 
+
 @dataclass
 class CommandResult:
     success: bool
@@ -21,14 +21,18 @@ class CommandResult:
     def __bool__(self):
         return self.success
 
-def get_conda_info():
+
+def get_conda_info() -> dict[str, Any]:
     try:
-        result = subprocess.run(['conda', 'info', '--json'], check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["conda", "info", "--json"], check=True, capture_output=True, text=True
+        )
         return json.loads(result.stdout)
     except subprocess.CalledProcessError as e:
-        print(f"Error getting conda info: {e}")
-        print(f"Error output: {e.stderr}")
-        return None
+        log.error(f"Error getting conda info: {e}")
+        log.error(f"Error output: {e.stderr}")
+        raise
+
 
 def run_bash_command(
     command: str,
@@ -44,7 +48,7 @@ def run_bash_command(
         if verbose:
             print(f"Cmd: {command}, cwd={cwd}", flush=True)
         conda_info = get_conda_info()
-        activate_path = os.path.join(conda_info["root_prefix"], 'bin', 'activate')
+        activate_path = os.path.join(conda_info["root_prefix"], "bin", "activate")
         command = f"source {activate_path} && {command}"
         result = subprocess.run(
             command,
