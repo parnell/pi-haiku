@@ -16,6 +16,7 @@ python = "^3.11"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"
 toml-sort = "^0.23.1"
+toml = "^0.10.2"
 
 [tool.tomlsort]
 all = true

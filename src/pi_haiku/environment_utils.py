@@ -6,9 +6,15 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
+from pi_haiku.environment_detector import (
+    EnvironmentDetector,
+    EnvironmentResult,
+    EnvironmentDetectionError,
+)
 from pi_haiku.models import PathType, PyPackage
 from pi_haiku.utils import run_bash_command
-from pi_haiku.environment_detector import EnvironmentDetector, EnvironmentResult
+
+log = logging.getLogger(__name__)
 
 
 class EnvType(Enum):
@@ -31,29 +37,70 @@ class EnvHelper:
             self.venv_path = Path(self.venv_path)
         if self.conda_base_path:
             self.conda_base_path = Path(self.conda_base_path)
-        
 
-    def update(self) -> Optional[str]:
+    def has_conda(self) -> bool:
+        # Check if the conda environment already exists
+        try:
+            detect = EnvironmentDetector(self.package, self.venv_path, self.conda_base_path)
+            detect_result = detect._detect_conda()
+            return (detect_result is not None and detect_result.env_type == EnvType.CONDA)
+        except EnvironmentDetectionError:
+            pass
+        return False
+
+    def create_conda_project(self) -> bool:
+        """
+        Create a conda project if it doesn't exist.
+
+        Returns:
+            bool: True if the project was created or already exists, False otherwise.
+        """
+        if self.has_conda():
+            log.debug(f"Conda environment already exists for {self.package.name}")
+            return True
+        # Create the conda environment
+        create_command = f"conda create -n {self.package.name} python=3.11 -y"
+        return run_bash_command(create_command) == True
+
+    def poetry_update(self) -> Optional[str]:
         try:
             detect = EnvironmentDetector(self.package, self.venv_path, self.conda_base_path)
             env_result = detect.detect_environment()
-            # env_type, activate_command = self.detect_environment()
-            # command = f"source {env_result.activate_command} && poetry install -vvv"
             command = f"{env_result.activate_command} && poetry update -vvv"
             sh_result = run_bash_command(command, cwd=self.package.path.parent)
             if command:
                 if "No dependencies to install or update" in sh_result.stdout:
-                    print(f"No dependencies to install or update for {self.package.name}")
+                    log.debug(f"No dependencies to install or update for {self.package.name}")
                     return None
-                print(sh_result.stdout)
-                print(
+                log.debug(sh_result.stdout)
+                log.debug(
                     f"Update successful for {self.package.name} v{self.package.version} using {env_result.env_type} environment"
                 )
             return sh_result.stdout
         except EnvironmentError as e:
-            print(f"Installation failed for {self.package.name}: {e}")
+            log.error(f"Installation failed for {self.package.name}: {e}")
         except subprocess.CalledProcessError as e:
-            print(
+            log.error(
+                f"Installation command failed for {self.package.name}. Check {self.error_file} for details."
+            )
+        return None
+
+    def poetry_install(self) -> Optional[str]:
+        try:
+            detect = EnvironmentDetector(self.package, self.venv_path, self.conda_base_path)
+            env_result = detect.detect_environment()
+            command = f"{env_result.activate_command} && poetry install -vvv"
+            sh_result = run_bash_command(command, cwd=self.package.path.parent)
+            if command:
+                log.debug(sh_result.stdout)
+                log.debug(
+                    f"Update successful for {self.package.name} v{self.package.version} using {env_result.env_type} environment"
+                )
+            return sh_result.stdout
+        except EnvironmentError as e:
+            log.error(f"Installation failed for {self.package.name}: {e}")
+        except subprocess.CalledProcessError as e:
+            log.error(
                 f"Installation command failed for {self.package.name}. Check {self.error_file} for details."
             )
         return None
@@ -61,4 +108,3 @@ class EnvHelper:
     @staticmethod
     def from_path(path: PathType) -> "EnvHelper":
         return EnvHelper(PyPackage.from_path(path))
-

@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Tuple
 
 from pi_haiku.models import PyPackage
 from pi_haiku.utils import run_bash_command
+
 log = logging.getLogger(__name__)
 
 class EnvType(Enum):
@@ -21,7 +22,7 @@ class EnvironmentResult:
     activate_command: str
 
 
-class EnvironmentDetectionError(Exception):
+class EnvironmentDetectionError(EnvironmentError):
     pass
 
 
@@ -73,7 +74,7 @@ class EnvironmentDetector:
                     return EnvironmentResult(EnvType.VENV, str(activate_path))
         return None
 
-    def _detect_conda(self) -> Optional[EnvironmentResult]:
+    def _detect_conda(self, include_base: bool = False) -> Optional[EnvironmentResult]:
         if not self.conda_base_path:
             return None
         assert self.package
@@ -91,7 +92,9 @@ class EnvironmentDetector:
                 env_path = parts[-1]
                 conda_envs[env_name] = env_path
 
-        env_names = [self.package.name, "base"]
+        env_names = [self.package.name]
+        if include_base:
+            env_names.append("base")
 
         for env_name in env_names:
             if env_name in conda_envs:
