@@ -1,3 +1,6 @@
+# Install the project
+install::
+	poetry install
 
 # Test Project
 test:: 
