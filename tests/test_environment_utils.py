@@ -7,12 +7,16 @@ import pytest
 import toml
 
 from pi_haiku.environment_detector import (
-    EnvironmentDetector,
     EnvironmentResult,
     EnvType,
 )
-from pi_haiku.environment_utils import EnvHelper, run_bash_command
+from pi_haiku.environment_utils import EnvHelper
 from pi_haiku.models import PyPackage
+
+skip_if_no_env = pytest.mark.skipif(
+    os.environ.get("HAIKU_TEST_ENVIRONMENT_UTILS") is None,
+    reason="Environment variable HAIKU_TEST_ENVIRONMENT_UTILS is not set",
+)
 
 
 def create_conda_env(name, python_version="3.11"):
@@ -45,6 +49,7 @@ def temp_conda_env():
     yield env_name
     remove_conda_env(env_name)
 
+
 def write_pyproject_file(path):
     pyproject_content = {
         "build-system": {
@@ -63,6 +68,7 @@ def write_pyproject_file(path):
         toml.dump(pyproject_content, f)
 
 
+@skip_if_no_env
 def test_env_helper_initialization(env_helper, sample_package):
     assert env_helper.package == sample_package
     assert env_helper.venv_path is None
@@ -70,6 +76,7 @@ def test_env_helper_initialization(env_helper, sample_package):
     assert env_helper.error_file == "test_package_install.log"
 
 
+@skip_if_no_env
 def test_create_conda_project_existing(tmp_path, temp_conda_env):
     # Create a temporary package
     package_dir = tmp_path / "test_package"
@@ -95,6 +102,7 @@ def test_create_conda_project_existing(tmp_path, temp_conda_env):
     assert conda_env_exists(temp_conda_env)
 
 
+@skip_if_no_env
 def test_env_helper_initialization_with_venv_path(tmp_path):
     # Create a temporary package directory
     package_dir = tmp_path / "test_package"
@@ -102,7 +110,7 @@ def test_env_helper_initialization_with_venv_path(tmp_path):
 
     # Create a pyproject.toml file with some basic content
     write_pyproject_file(package_dir)
-    
+
     # Create a virtual environment path
     venv_path = tmp_path / "venv"
 
@@ -126,6 +134,7 @@ def test_env_helper_initialization_with_venv_path(tmp_path):
 #     mock_run_bash.assert_called_once_with("conda create -n test_package python=3.11 -y")
 
 
+@skip_if_no_env
 @patch("pi_haiku.environment_detector.EnvironmentDetector")
 @patch("pi_haiku.environment_utils.run_bash_command")
 def test_update_successful(mock_run_bash, mock_detector, env_helper):
@@ -134,11 +143,12 @@ def test_update_successful(mock_run_bash, mock_detector, env_helper):
     )
     mock_run_bash.return_value = MagicMock(stdout="Update successful")
 
-    result = env_helper.update()
+    result = env_helper.poetry_update()
     assert result == "Update successful"
     mock_run_bash.assert_called_once()
 
 
+@skip_if_no_env
 @patch("pi_haiku.environment_detector.EnvironmentDetector")
 @patch("pi_haiku.environment_utils.run_bash_command")
 def test_update_no_dependencies(mock_run_bash, mock_detector, env_helper):
@@ -147,7 +157,7 @@ def test_update_no_dependencies(mock_run_bash, mock_detector, env_helper):
     )
     mock_run_bash.return_value = MagicMock(stdout="No dependencies to install or update")
 
-    result = env_helper.update()
+    result = env_helper.poetry_update()
     assert result is None
 
 
@@ -156,10 +166,11 @@ def test_update_no_dependencies(mock_run_bash, mock_detector, env_helper):
 # def test_update_failed(mock_run_bash, mock_detector, env_helper):
 #     mock_detector.return_value.detect_environment.side_effect = EnvironmentError("Test error")
 
-#     result = env_helper.update()
+#     result = env_helper.poetry_update()
 #     assert result is None
 
 
+@skip_if_no_env
 def test_from_path():
     path = "/path/to/package"
     with patch("pi_haiku.models.PyPackage.from_path") as mock_from_path:

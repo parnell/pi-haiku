@@ -116,6 +116,8 @@ class PyProjectModifier:
         dest_file: Optional[str] = None,
         in_place: bool = False,
         use_toml_sort: bool = True,
+        update: bool = False,
+        backup_dir: Optional[PathType] = None,
     ) -> list[tuple[str, str]]:
         """
         Convert package dependencies to remote (published) versions.
@@ -126,6 +128,8 @@ class PyProjectModifier:
             dest_file (Optional[str]): Path to save the modified pyproject.toml. If None, uses in-place modification.
             in_place (bool): If True, modifies the original file. Cannot be used with dest_file.
             use_toml_sort (bool): If True, sorts the resulting TOML file using toml-sort.
+            update (bool): If True, forces an update even if the package is already in a remote state
+            backup_dir (Optional[PathType]): Directory to save the backup file. If None, uses a temporary directory.
 
         Returns:
             List[Tuple[str, str]]: A list of tuples containing the original and modified lines.
@@ -152,6 +156,9 @@ class PyProjectModifier:
             dest_file=dest_file,
             in_place=in_place,
             use_toml_sort=use_toml_sort,
+            convert_to_local=False,
+            update=update,
+            backup_dir=backup_dir,
         )
 
     def convert_to_local(
@@ -161,6 +168,7 @@ class PyProjectModifier:
         dest_file: Optional[str] = None,
         in_place: bool = False,
         use_toml_sort: bool = True,
+        backup_dir: Optional[PathType] = None,
     ) -> list[tuple[str, str]]:
         """
         Convert package dependencies to local development versions.
@@ -182,22 +190,28 @@ class PyProjectModifier:
         if match_patterns is None and packages is None:
             raise ValueError("Either match_patterns or packages must be provided")
 
+        all_match_patterns = list(match_patterns or [])
+
         if packages is not None:
-            match_patterns = self._create_match_patterns_from_packages(
+            package_match_patterns = self._create_match_patterns_from_packages(
                 packages=packages,
                 version_to='{develop = true, path = "{package.path.relative}"}',
             )
-        if not match_patterns:
+            all_match_patterns.extend(package_match_patterns)
+
+        if not all_match_patterns:
             raise ValueError(
                 "No match patterns were created. pyproject.toml would not be modified."
             )
+
         return self._convert_to(
-            match_patterns=match_patterns,
+            match_patterns=all_match_patterns,
             dest_file=dest_file,
             in_place=in_place,
             use_toml_sort=use_toml_sort,
+            convert_to_local=True,
+            backup_dir=backup_dir,
         )
-
     def _create_match_patterns_from_packages(
         self,
         packages: Sequence[PyPackage],
@@ -230,6 +244,9 @@ class PyProjectModifier:
         dest_file: Optional[str] = None,
         in_place: bool = False,
         use_toml_sort: bool = True,
+        convert_to_local: bool = False,
+        update: bool = False,
+        backup_dir: Optional[PathType] = None,
     ) -> list[tuple[str, str]]:
         """
         Convert package dependencies to remote (non-local) versions.
@@ -254,14 +271,19 @@ class PyProjectModifier:
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             backup_file = shutil.copy(pyproj.path, tmpdirname)
-        if dest_file is not None and in_place:
+
+        if backup_dir:
+            dest_file = os.path.join(backup_dir, f"{pyproj.name}_pyproject.toml")
+        elif dest_file is not None and in_place:
             raise ValueError("Only one of dest_file or in_place can be specified")
-        if in_place:
+        elif in_place:
             dest_file = str(pyproj.path)
-        if not in_place and not backup_file:
+        elif not in_place and not dest_file:
             raise ValueError("destination file is required when in_place is False")
+
         changes: list[tuple[str, str]] = []
         new_lines: list[str] = []
+
         with open(pyproj.path) as fp:
             for line in fp:
                 if "=" not in line:
@@ -271,6 +293,18 @@ class PyProjectModifier:
                 package, previous_package_info = sline.split("=", maxsplit=1)
                 package = package.strip()
                 previous_package_info = previous_package_info.strip()
+
+                is_currently_local = re.search(r"path\s+=", previous_package_info) or re.search(
+                    r"develop\s*=\s*true", previous_package_info
+                )
+
+                # Skip if we're not forcing an update and the package is already in the desired state
+                if not update and (
+                    (convert_to_local and is_currently_local)
+                    or (not convert_to_local and not is_currently_local)
+                ):
+                    new_lines.append(line)
+                    continue
 
                 new_value = ""
                 matched = False
@@ -298,10 +332,12 @@ class PyProjectModifier:
                         line = new_line
 
                 new_lines.append(line)
+
         if not changes:
             if use_toml_sort and dest_file:
                 run_bash_command(f"toml-sort {dest_file}")
             return changes
+
         try:
             with tempfile.NamedTemporaryFile("w", delete=False) as tmpfile:
                 tmpfile.writelines(new_lines)
