@@ -212,6 +212,7 @@ class PyProjectModifier:
             convert_to_local=True,
             backup_dir=backup_dir,
         )
+
     def _create_match_patterns_from_packages(
         self,
         packages: Sequence[PyPackage],
@@ -268,13 +269,10 @@ class PyProjectModifier:
         """
         pyproj = self.pyproj
         assert pyproj is not None
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            backup_file = shutil.copy(pyproj.path, tmpdirname)
-
+        backup_file = None
         if backup_dir:
-            dest_file = os.path.join(backup_dir, f"{pyproj.name}_pyproject.toml")
-        elif dest_file is not None and in_place:
+            backup_file = os.path.join(backup_dir, f"{pyproj.name}_pyproject.toml")
+        if dest_file is not None and in_place:
             raise ValueError("Only one of dest_file or in_place can be specified")
         elif in_place:
             dest_file = str(pyproj.path)
@@ -339,6 +337,9 @@ class PyProjectModifier:
             return changes
 
         try:
+            if backup_file:
+                os.makedirs(os.path.dirname(backup_file), exist_ok=True)
+                shutil.copy(pyproj.path, backup_file)
             with tempfile.NamedTemporaryFile("w", delete=False) as tmpfile:
                 tmpfile.writelines(new_lines)
                 tmpfile.close()

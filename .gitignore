@@ -62,6 +62,7 @@ tempdb
 t.csv
 errors.txt
 .private
+.backup
 
 ## vscode
 .vscode

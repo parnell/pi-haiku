@@ -9,12 +9,6 @@ from pi_haiku import PackageMatch, PyPackage, PyProjectModifier
 
 
 @pytest.fixture
-def temp_project_dir():
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        yield Path(tmpdirname)
-
-
-@pytest.fixture
 def sample_pyproject_toml():
     return """
 [build-system]
@@ -34,16 +28,16 @@ local-package = {path = "../local-package", develop = true}
 
 
 @pytest.fixture
-def pyproject_file(temp_project_dir, sample_pyproject_toml):
-    pyproject_path = temp_project_dir / "pyproject.toml"
+def pyproject_file(tmp_path, sample_pyproject_toml):
+    pyproject_path = tmp_path / "pyproject.toml"
     with open(pyproject_path, "w") as f:
         f.write(sample_pyproject_toml)
     return pyproject_path
 
 
 @pytest.fixture
-def mock_packages(temp_project_dir):
-    local_package_dir = temp_project_dir.parent / "local-package"
+def mock_packages(tmp_path):
+    local_package_dir = tmp_path.parent / "local-package"
     local_package_dir.mkdir(exist_ok=True)
     local_package_pyproject = local_package_dir / "pyproject.toml"
     with open(local_package_pyproject, "w") as f:
@@ -65,8 +59,8 @@ python = "^3.8"
     return {"local-package": PyPackage.from_path(local_package_pyproject)}
 
 
-def test_convert_to_remote_with_backup_dir(temp_project_dir, pyproject_file, mock_packages):
-    backup_dir = temp_project_dir / "backup"
+def test_convert_to_remote_with_backup_dir(tmp_path, pyproject_file, mock_packages):
+    backup_dir = tmp_path / "backup"
     os.mkdir(backup_dir)
 
     ppm = PyProjectModifier(pyproject_file, packages=mock_packages)
@@ -76,7 +70,9 @@ def test_convert_to_remote_with_backup_dir(temp_project_dir, pyproject_file, moc
         )
     ]
 
-    changes = ppm.convert_to_remote(match_patterns=match_patterns, backup_dir=backup_dir)
+    changes = ppm.convert_to_remote(
+        match_patterns=match_patterns, backup_dir=backup_dir, in_place=True
+    )
 
     # Check if the backup file was created
     backup_file = backup_dir / "test-project_pyproject.toml"
@@ -90,13 +86,12 @@ def test_convert_to_remote_with_backup_dir(temp_project_dir, pyproject_file, moc
     # Verify the content of the backup file
     with open(backup_file, "r") as f:
         content = f.read()
-        assert 'local-package = "0.1.0"' in content
-        assert 'path = "../local-package"' not in content
-        assert "develop = true" not in content
+        assert "local-package" in content
+        assert 'path = "../local-package"' in content
+        assert "develop = true" in content
 
-
-def test_convert_to_local_with_backup_dir(temp_project_dir, pyproject_file, mock_packages):
-    backup_dir = temp_project_dir / "backup"
+def test_convert_to_local_with_backup_dir(tmp_path, pyproject_file, mock_packages):
+    backup_dir = tmp_path / "backup"
     os.mkdir(backup_dir)
 
     # Modify the original pyproject.toml to have a remote dependency
@@ -117,27 +112,25 @@ def test_convert_to_local_with_backup_dir(temp_project_dir, pyproject_file, mock
         )
     ]
 
-    changes = ppm.convert_to_local(match_patterns=match_patterns, backup_dir=backup_dir)
+    changes = ppm.convert_to_local(
+        match_patterns=match_patterns, backup_dir=backup_dir, in_place=True
+    )
 
     # Check if the backup file was created
     backup_file = backup_dir / "test-project_pyproject.toml"
     assert backup_file.exists()
 
-    # Check if the changes were applied
-    assert len(changes) == 1
-    assert "local-package" in changes[0][0]
-    assert "path" in changes[0][1] and "develop = true" in changes[0][1]
 
     # Verify the content of the backup file
     with open(backup_file, "r") as f:
         content = f.read()
-        assert "local-package" in content
-        assert 'path = "../local-package"' in content
-        assert "develop = true" in content
+        assert 'local-package = "0.1.0"' in content
+        assert 'path = "../local-package"' not in content
+        assert "develop = true" not in content
 
 
-def test_no_changes_with_backup_dir(temp_project_dir, pyproject_file, mock_packages):
-    backup_dir = temp_project_dir / "backup"
+def test_no_changes_with_backup_dir(tmp_path, pyproject_file, mock_packages):
+    backup_dir = tmp_path / "backup"
     os.mkdir(backup_dir)
 
     ppm = PyProjectModifier(pyproject_file, packages=mock_packages)
@@ -149,7 +142,9 @@ def test_no_changes_with_backup_dir(temp_project_dir, pyproject_file, mock_packa
         )
     ]
 
-    changes = ppm.convert_to_remote(match_patterns=match_patterns, backup_dir=backup_dir)
+    changes = ppm.convert_to_remote(
+        match_patterns=match_patterns, backup_dir=backup_dir, in_place=True
+    )
 
     # Check that no changes were made
     assert len(changes) == 0

@@ -45,19 +45,14 @@ class Haiku:
                 print(f"        =============== {proj} =============== ")
             pmod = PyProjectModifier(proj.path, packages=projs)
 
-            if backup_dir:
-                backup_file = os.path.join(backup_dir, f"{proj.name}_pyproject.toml")
-            else:
-                backup_file = tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".toml", delete=False
-                ).name
 
             file_changes = convert_function(
                 pmod,
-                dest_file=backup_file,
                 packages=list_projs,
                 use_toml_sort=False,
                 update=update,
+                inplace=not dry_run,
+                backup_dir=backup_dir,
             )
             changes[proj] = file_changes
             if should_print and file_changes:
