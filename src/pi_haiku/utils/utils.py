@@ -147,11 +147,14 @@ def special_substitutions(s: str, pkg: PyPackage, other_pkg: Optional[PyPackage]
         raise ValueError("other_pkg is required for special substitutions requiring other package")
     assert other_pkg  # to make mypy happy as it is already checked in the above line
     if "{package.version}" in s:
-        s = s.replace("{package.version}", f'"{other_pkg.version}"')
+        caret_str = "^" if not "^" in other_pkg.version else ""
+        s = s.replace("{package.version}", f'"{caret_str}{other_pkg.version}"')
     if "{package.path.relative}" in s:
         s = s.replace("{package.path.relative}", str(other_pkg.relative_to_package(pkg).parent))
     if "{package.path.absolute}" in s:
         s = s.replace("{package.path.absolute}", str(other_pkg.path.parent))
+    ## use a regex to remove common mistakes such as double caret
+    s = s.replace("^+", "^")
     return s
 
 

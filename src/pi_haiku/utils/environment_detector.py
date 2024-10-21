@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 from pi_haiku.models import PyPackage
-from pi_haiku.utils import run_bash_command
+from pi_haiku.utils.utils import run_bash_command
 
 log = logging.getLogger(__name__)
 

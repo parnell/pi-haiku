@@ -15,8 +15,10 @@ PathType = str | Path
 
 MATCH_ALL: str = r"^.*$"
 
+
 class BuildSystemError(Exception):
     pass
+
 
 @dataclass
 class PackageMatch:
@@ -80,7 +82,7 @@ class PyPackage:
                 dependencies.update({dep: None for dep in data["project"]["dependencies"]})
 
         return dependencies
-
+    
     @staticmethod
     def from_path(path: PathType) -> "PyPackage":
         path = Path(path).expanduser().resolve()
@@ -113,6 +115,13 @@ class PyPackage:
                 print(f"Could not read the {path} file", file=sys.stderr)
                 raise
 
+    def get_local_dependencies(self) -> dict[str, str]:
+        local_deps: dict[str, str] = {}
+        for dep, version in self.dependencies.items():
+            if isinstance(version, dict) and "path" in version:
+                local_deps[dep] = version["path"]
+        return local_deps
+
     def __str__(self) -> str:
         return f"{self.name}=={self.version}"
 
@@ -129,6 +138,7 @@ class PyPackage:
 
     def __hash__(self) -> int:
         return hash(self.name)
+
 
 def _get_build_system(
     data: dict[str, Any], search_for: Optional[BuildSystem] = None, default: Optional[Any] = None

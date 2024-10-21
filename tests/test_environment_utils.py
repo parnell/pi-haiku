@@ -6,12 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 import toml
 
-from pi_haiku.environment_detector import (
-    EnvironmentResult,
-    EnvType,
-)
-from pi_haiku.environment_utils import EnvHelper
 from pi_haiku.models import PyPackage
+from pi_haiku.utils.environment_detector import EnvironmentResult, EnvType
+from pi_haiku.utils.environment_utils import EnvHelper
 
 skip_if_no_env = pytest.mark.skipif(
     os.environ.get("HAIKU_TEST_ENVIRONMENT_UTILS") is None,

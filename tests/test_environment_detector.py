@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pi_haiku.environment_detector import (
+from pi_haiku.utils.environment_detector import (
     EnvironmentDetectionError,
     EnvironmentDetector,
     EnvType,

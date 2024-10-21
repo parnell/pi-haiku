@@ -6,17 +6,28 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
-from pi_haiku.environment_detector import (
+from pi_haiku.models import PathType, PyPackage
+from pi_haiku.utils.environment_detector import (
+    EnvironmentDetectionError,
     EnvironmentDetector,
     EnvironmentResult,
-    EnvironmentDetectionError,
 )
-from pi_haiku.models import PathType, PyPackage
-from pi_haiku.utils import run_bash_command
+from pi_haiku.utils.utils import run_bash_command
 
-log = logging.getLogger(__name__)
+# Define the TRACE level; any integer lower than 10 (DEBUG's level) will work.
+TRACE_LEVEL = 5
 
+class CustomLogger(logging.getLoggerClass()):
+    def trace(self, message: str, *args: Any, **kwargs: Any) -> None:
+        if self.isEnabledFor(TRACE_LEVEL):
+            self._log(TRACE_LEVEL, message, args, **kwargs)
 
+# Set the custom logger class
+logging.setLoggerClass(CustomLogger)
+
+log: CustomLogger = logging.getLogger(__name__)
+
+VERBOSE_LEVEL = 1
 class EnvType(Enum):
     VENV = auto()
     CONDA = auto()
@@ -43,7 +54,7 @@ class EnvHelper:
         try:
             detect = EnvironmentDetector(self.package, self.venv_path, self.conda_base_path)
             detect_result = detect._detect_conda()
-            return (detect_result is not None and detect_result.env_type == EnvType.CONDA)
+            return detect_result is not None and detect_result.env_type == EnvType.CONDA
         except EnvironmentDetectionError:
             pass
         return False
@@ -72,7 +83,7 @@ class EnvHelper:
                 if "No dependencies to install or update" in sh_result.stdout:
                     log.debug(f"No dependencies to install or update for {self.package.name}")
                     return None
-                log.debug(sh_result.stdout)
+                log.trace(sh_result.stdout)
                 log.debug(
                     f"Update successful for {self.package.name} v{self.package.version} using {env_result.env_type} environment"
                 )
@@ -92,9 +103,9 @@ class EnvHelper:
             command = f"{env_result.activate_command} && poetry install -vvv"
             sh_result = run_bash_command(command, cwd=self.package.path.parent)
             if command:
-                log.debug(sh_result.stdout)
+                log.trace(sh_result.stdout)
                 log.debug(
-                    f"Update successful for {self.package.name} v{self.package.version} using {env_result.env_type} environment"
+                    f"Install successful for {self.package.name} v{self.package.version} using {env_result.env_type} environment"
                 )
             return sh_result.stdout
         except EnvironmentError as e:

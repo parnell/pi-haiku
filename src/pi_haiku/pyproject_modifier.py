@@ -1,13 +1,13 @@
 import os
 import re
 import shutil
-import sys
 import tempfile
 import tomllib as toml
+import uuid
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Callable
 
 from pi_haiku.models import (
     BuildSystem,
@@ -16,9 +16,13 @@ from pi_haiku.models import (
     PathType,
     PyPackage,
 )
-import uuid
-from pi_haiku.utils import find_duplicates, run_bash_command, special_substitutions
+from pi_haiku.utils.utils import (
+    find_duplicates,
+    run_bash_command,
+    special_substitutions,
+)
 
+from pi_haiku.utils.environment_utils import EnvHelper
 log = getLogger(__name__)
 EXCLUDE_DIRS: list[PathType] = ["__pycache__", "dist", "docker_staging"]
 lsentinel = [uuid.uuid4().hex]
@@ -118,6 +122,7 @@ class PyProjectModifier:
         use_toml_sort: bool = True,
         update: bool = False,
         backup_dir: Optional[PathType] = None,
+        should_change_module: Callable[[str], bool] = lambda _: True,
     ) -> list[tuple[str, str]]:
         """
         Convert package dependencies to remote (published) versions.
@@ -143,8 +148,7 @@ class PyProjectModifier:
 
         if packages is not None:
             match_patterns = self._create_match_patterns_from_packages(
-                packages=packages,
-                version_to="{package.version}",
+                packages=packages, version_to="{package.version}"
             )
         if not match_patterns:
             raise ValueError(
@@ -159,8 +163,8 @@ class PyProjectModifier:
             convert_to_local=False,
             update=update,
             backup_dir=backup_dir,
+            should_change_module=should_change_module,
         )
-
     def convert_to_local(
         self,
         match_patterns: Optional[Sequence[PackageMatch]] = None,
@@ -168,7 +172,9 @@ class PyProjectModifier:
         dest_file: Optional[str] = None,
         in_place: bool = False,
         use_toml_sort: bool = True,
+        update: bool = False,
         backup_dir: Optional[PathType] = None,
+        should_change_module: Callable[[str], bool] = lambda _: True,
     ) -> list[tuple[str, str]]:
         """
         Convert package dependencies to local development versions.
@@ -210,7 +216,9 @@ class PyProjectModifier:
             in_place=in_place,
             use_toml_sort=use_toml_sort,
             convert_to_local=True,
+            update=update,
             backup_dir=backup_dir,
+            should_change_module=should_change_module,
         )
 
     def _create_match_patterns_from_packages(
@@ -248,6 +256,7 @@ class PyProjectModifier:
         convert_to_local: bool = False,
         update: bool = False,
         backup_dir: Optional[PathType] = None,
+        should_change_module: Callable[[str], bool] = lambda _: True,
     ) -> list[tuple[str, str]]:
         """
         Convert package dependencies to remote (non-local) versions.
@@ -276,8 +285,8 @@ class PyProjectModifier:
             raise ValueError("Only one of dest_file or in_place can be specified")
         elif in_place:
             dest_file = str(pyproj.path)
-        elif not in_place and not dest_file:
-            raise ValueError("destination file is required when in_place is False")
+        # elif not in_place and not dest_file:
+        #     raise ValueError("destination file is required when in_place is False")
 
         changes: list[tuple[str, str]] = []
         new_lines: list[str] = []
@@ -291,6 +300,11 @@ class PyProjectModifier:
                 package, previous_package_info = sline.split("=", maxsplit=1)
                 package = package.strip()
                 previous_package_info = previous_package_info.strip()
+
+                # Check if this module should be changed
+                if not should_change_module(package):
+                    new_lines.append(line)
+                    continue
 
                 is_currently_local = re.search(r"path\s+=", previous_package_info) or re.search(
                     r"develop\s*=\s*true", previous_package_info
@@ -336,18 +350,36 @@ class PyProjectModifier:
                 run_bash_command(f"toml-sort {dest_file}")
             return changes
 
-        try:
-            if backup_file:
-                os.makedirs(os.path.dirname(backup_file), exist_ok=True)
-                shutil.copy(pyproj.path, backup_file)
+        if backup_file:
+            os.makedirs(os.path.dirname(backup_file), exist_ok=True)
+            shutil.copy(pyproj.path, backup_file)
+        if dest_file:
             with tempfile.NamedTemporaryFile("w", delete=False) as tmpfile:
                 tmpfile.writelines(new_lines)
                 tmpfile.close()
                 assert dest_file is not None
                 shutil.copy(tmpfile.name, dest_file)
-        except Exception as e:
-            print(f"Error occurred: {e}", file=sys.stderr)
-            raise
+                pyproj._rmlock()
+                try:
+                    env_helper = EnvHelper(package=pyproj)
+                    env_helper.poetry_update()
+                    env_helper.poetry_install()
+                    # if not convert_to_local:
+                    #     # env_helper.poetry_build()
+                    #     versions = get_package_versions(pyproj.name)
+                    #     ## If on pypi, update the version
+                    #     if versions:
+                    #         if versions[-1] < pyproj.version:
+                    #             env_helper.poetry_publish()
+                    #     else:
+                    #         # git release
+                    #         gm = GithubManager()
+                    #         gm.create_github_release_with_dist(pyproj)
+
+                except Exception as e:
+                    log.error(f"Poetry update failed: {e}")
+                    log.exception(e)
+                    raise
 
         if use_toml_sort and dest_file:
             run_bash_command(f"toml-sort {dest_file}")

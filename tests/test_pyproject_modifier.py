@@ -47,7 +47,7 @@ numpy = "^1.21.0"
 
 
 @pytest.fixture
-def package2_toml_content():
+def remote_package2_toml_content():
     return """
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -55,7 +55,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "package2"
-version = "0.2.0"
+version = "^0.2.0"
 description = ""
 authors = ["Author Two <author2@example.com>"]
 
@@ -65,7 +65,7 @@ python = "^3.9"
 
 
 @pytest.fixture
-def package3_toml_content():
+def remote_package3_toml_content():
     return """
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -73,7 +73,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "package3"
-version = "0.3.0"
+version = "^0.3.0"
 description = ""
 authors = ["Author Three <author3@example.com>"]
 
@@ -101,20 +101,20 @@ def remote_package1_pyproject_toml(tmp_path, remote_package1_toml_content):
 
 
 @pytest.fixture
-def package2_pyproject_toml(tmp_path, package2_toml_content):
+def package2_pyproject_toml(tmp_path, remote_package2_toml_content):
     file_path = tmp_path / "package2" / "pyproject.toml"
     file_path.parent.mkdir(parents=True)
     with open(file_path, "w") as f:
-        f.write(package2_toml_content)
+        f.write(remote_package2_toml_content)
     return file_path
 
 
 @pytest.fixture
-def package3_pyproject_toml(tmp_path, package3_toml_content):
+def package3_pyproject_toml(tmp_path, remote_package3_toml_content):
     file_path = tmp_path / "package3" / "pyproject.toml"
     file_path.parent.mkdir(parents=True)
     with open(file_path, "w") as f:
-        f.write(package3_toml_content)
+        f.write(remote_package3_toml_content)
     return file_path
 
 
@@ -168,7 +168,7 @@ def test_convert_to_remote(local_pyprojmod: PyProjectModifier, local_package1_py
     assert len(changes) == 1
     with open(local_package1_pyproject_toml) as f:
         content = f.read()
-    assert 'package2 = "0.2.0"' in content
+    assert 'package2 = "^0.2.0"' in content
 
 
 def test_convert_back_and_forth(local_pyprojmod: PyProjectModifier, local_package1_pyproject_toml):
@@ -177,7 +177,7 @@ def test_convert_back_and_forth(local_pyprojmod: PyProjectModifier, local_packag
     assert len(changes) == 1
     with open(local_package1_pyproject_toml) as f:
         content = f.read()
-    assert 'package2 = "0.2.0"' in content
+    assert 'package2 = "^0.2.0"' in content
 
     match_pattern = ToLocalMatch(package_regex="package2")  # type: ignore
     changes = local_pyprojmod.convert_to_local([match_pattern], in_place=True)
@@ -208,7 +208,7 @@ def test_convert_with_dest_file(local_pyprojmod: PyProjectModifier, tmp_path):
     assert dest_file.exists()
     with open(dest_file) as f:
         content = f.read()
-    assert 'package2 = "0.2.0"' in content
+    assert 'package2 = "^0.2.0"' in content
 
 
 def test_convert_without_changes(local_pyprojmod: PyProjectModifier):
@@ -252,7 +252,7 @@ def test_convert_to_remote_with_packages(
     with open(local_package1_pyproject_toml) as f:
         content = f.read()
 
-    assert 'package2 = "0.2.0"' in content
+    assert 'package2 = "^0.2.0"' in content
     assert "package3" not in content  # Ensure package3 wasn't added
 
 

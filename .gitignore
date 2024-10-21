@@ -63,6 +63,10 @@ t.csv
 errors.txt
 .private
 .backup
+t.py
+t.json
+myoutput.csv
+t2.csv
 
 ## vscode
 .vscode
