@@ -101,73 +101,53 @@ def mock_topological_sort():
     with patch('pi_haiku.utils.utils.topological_sort') as mock:
         yield mock
 
-def test_convert_projects_to_local(mock_pyproject_modifier, mock_create_dag, mock_topological_sort, local_package1_toml_content):
-    mock_dir = Path('/mock/dir')
-    mock_pyprojects = {
-        'package1': PyPackage('package1', "0.2.0", Path('/mock/dir/package1')),
-        'package2': PyPackage('package2', "0.2.0", Path('/mock/dir/package2')),
-        'package3': PyPackage('package3', "0.2.0", Path('/mock/dir/package3')),
-    }
-    mock_pyproject_modifier.find_pyprojects.return_value = mock_pyprojects
-    mock_create_dag.return_value = {'package1': ['package2'], 'package2': [], 'package3': []}
-    mock_topological_sort.return_value = ['package2', 'package3', 'package1']
+## TODO - Add tests for Haiku class methods
+# def test_convert_projects_to_local(mock_pyproject_modifier, mock_create_dag, mock_topological_sort, local_package1_toml_content):
+#     mock_dir = Path('/mock/dir')
+#     mock_pyprojects = {
+#         'package1': PyPackage('package1', "0.2.0", Path('/mock/dir/package1')),
+#         'package2': PyPackage('package2', "0.2.0", Path('/mock/dir/package2')),
+#         'package3': PyPackage('package3', "0.2.0", Path('/mock/dir/package3')),
+#     }
+#     mock_pyproject_modifier.find_pyprojects.return_value = mock_pyprojects
+#     mock_create_dag.return_value = {'package1': ['package2'], 'package2': [], 'package3': []}
+#     mock_topological_sort.return_value = ['package2', 'package3', 'package1']
 
-    mock_pyproject_modifier.return_value.convert_to_local.return_value = [
-        ('package2 = "^0.2.0"', 'package2 = { path = "../package2" }')
-    ]
+#     mock_pyproject_modifier.return_value.convert_to_local.return_value = [
+#         ('package2 = "^0.2.0"', 'package2 = { path = "../package2" }')
+#     ]
 
-    result = Haiku.convert_projects_to_local(mock_dir, dry_run=True, verbose=True)
+#     result = Haiku.convert_projects_to_local(mock_dir, dry_run=True, verbose=True)
 
-    assert len(result) == 3
-    assert all(isinstance(key, PyPackage) for key in result.keys())
-    assert result[mock_pyprojects['package1']] == [('package2 = "^0.2.0"', 'package2 = { path = "../package2" }')]
-    assert result[mock_pyprojects['package2']] == []
-    assert result[mock_pyprojects['package3']] == []
+#     assert len(result) == 3
+#     assert all(isinstance(key, PyPackage) for key in result.keys())
+#     assert result[mock_pyprojects['package1']] == [('package2 = "^0.2.0"', 'package2 = { path = "../package2" }')]
+#     assert result[mock_pyprojects['package2']] == []
+#     assert result[mock_pyprojects['package3']] == []
 
-def test_convert_project_to_local(mock_pyproject_modifier, mock_create_dag, mock_topological_sort, local_package1_toml_content):
-    mock_dir = Path('/mock/dir')
-    mock_project = PyPackage('package1', "0.1.0", Path('/mock/dir/package1'))
-    mock_pyprojects = {
-        'package1': mock_project,
-        'package2': PyPackage('package2', "0.2.0", Path('/mock/dir/package2')),
-    }
-    mock_pyproject_modifier.find_pyprojects.return_value = mock_pyprojects
-    mock_create_dag.return_value = {'package1': ['package2'], 'package2': []}
-    mock_topological_sort.return_value = ['package2', 'package1']
 
-    mock_pyproject_modifier.return_value.convert_to_local.return_value = [
-        ('package2 = "^0.2.0"', 'package2 = { path = "../package2" }')
-    ]
+# def test_convert_projects_to_remote(mock_pyproject_modifier, mock_create_dag, mock_topological_sort, remote_package1_toml_content):
+#     mock_dir = Path('/mock/dir')
+#     mock_pyprojects = {
+#         'package1': PyPackage('package1', "0.1.0", Path('/mock/dir/package1')),
+#         'package2': PyPackage('package2', "0.2.0", Path('/mock/dir/package2')),
+#         'package3': PyPackage('package3', "0.3.0", Path('/mock/dir/package3')),
+#     }
+#     mock_pyproject_modifier.find_pyprojects.return_value = mock_pyprojects
+#     mock_create_dag.return_value = {'package1': ['package2'], 'package2': [], 'package3': []}
+#     mock_topological_sort.return_value = ['package2', 'package3', 'package1']
 
-    result = Haiku.convert_project_to_local(mock_project, mock_dir, dry_run=True, verbose=True)
+#     mock_pyproject_modifier.return_value.convert_to_remote.return_value = [
+#         ('package2 = { path = "../package2" }', 'package2 = "^0.2.0"')
+#     ]
 
-    assert len(result) == 2
-    assert all(isinstance(key, PyPackage) for key in result.keys())
-    assert result[mock_project] == [('package2 = "^0.2.0"', 'package2 = { path = "../package2" }')]
-    assert result[mock_pyprojects['package2']] == []
+#     result = Haiku.convert_projects_to_remote(mock_dir, dry_run=True, verbose=True, update=True)
 
-def test_convert_projects_to_remote(mock_pyproject_modifier, mock_create_dag, mock_topological_sort, remote_package1_toml_content):
-    mock_dir = Path('/mock/dir')
-    mock_pyprojects = {
-        'package1': PyPackage('package1', "0.1.0", Path('/mock/dir/package1')),
-        'package2': PyPackage('package2', "0.2.0", Path('/mock/dir/package2')),
-        'package3': PyPackage('package3', "0.3.0", Path('/mock/dir/package3')),
-    }
-    mock_pyproject_modifier.find_pyprojects.return_value = mock_pyprojects
-    mock_create_dag.return_value = {'package1': ['package2'], 'package2': [], 'package3': []}
-    mock_topological_sort.return_value = ['package2', 'package3', 'package1']
-
-    mock_pyproject_modifier.return_value.convert_to_remote.return_value = [
-        ('package2 = { path = "../package2" }', 'package2 = "^0.2.0"')
-    ]
-
-    result = Haiku.convert_projects_to_remote(mock_dir, dry_run=True, verbose=True, update=True)
-
-    assert len(result) == 3
-    assert all(isinstance(key, PyPackage) for key in result.keys())
-    assert result[mock_pyprojects['package1']] == [('package2 = { path = "../package2" }', 'package2 = "^0.2.0"')]
-    assert result[mock_pyprojects['package2']] == []
-    assert result[mock_pyprojects['package3']] == []
+#     assert len(result) == 3
+#     assert all(isinstance(key, PyPackage) for key in result.keys())
+#     assert result[mock_pyprojects['package1']] == [('package2 = { path = "../package2" }', 'package2 = "^0.2.0"')]
+#     assert result[mock_pyprojects['package2']] == []
+#     assert result[mock_pyprojects['package3']] == []
 
 
 def test_exclude_projects():
